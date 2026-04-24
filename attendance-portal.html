@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FaceAttend — Smart Attendance Portal</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --card: #16161f;
+    --border: #2a2a3a;
+    --accent: #6ee7b7;
+    --accent2: #818cf8;
+    --danger: #f87171;
+    --warn: #fbbf24;
+    --text: #e8e8f0;
+    --muted: #6b7280;
+    --mono: 'Space Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; overflow-x: hidden; }
+
+  /* Animated grid bg */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.3;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+
+  /* Header */
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; flex-wrap: wrap; gap: 12px; }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-icon { width: 36px; height: 36px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .logo-text { font-family: var(--mono); font-size: 18px; font-weight: 700; letter-spacing: -0.5px; }
+  .logo-text span { color: var(--accent); }
+  .nav-tabs { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 4px; }
+  .tab-btn { font-family: var(--sans); font-size: 13px; font-weight: 500; padding: 7px 16px; border: none; border-radius: 7px; cursor: pointer; transition: all 0.2s; background: transparent; color: var(--muted); }
+  .tab-btn.active { background: var(--card); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,0.4); }
+
+  /* Panels */
+  .panel { display: none; animation: fadeIn 0.3s ease; }
+  .panel.active { display: block; }
+  @keyframes fadeIn { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform: translateY(0); } }
+
+  /* Cards */
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 24px; margin-bottom: 20px; }
+  .card-title { font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; }
+
+  /* Camera */
+  .camera-wrap { position: relative; width: 100%; max-width: 480px; margin: 0 auto; border-radius: 12px; overflow: hidden; background: #000; aspect-ratio: 4/3; }
+  .camera-wrap video, .camera-wrap canvas.preview { width: 100%; height: 100%; object-fit: cover; display: block; }
+  canvas.preview { position: absolute; inset: 0; }
+  .camera-overlay { position: absolute; inset: 0; pointer-events: none; }
+  .scan-frame { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 55%; aspect-ratio: 3/4; border: 2px solid var(--accent); border-radius: 8px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.4); }
+  .scan-line { position: absolute; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--accent), transparent); animation: scanMove 2s ease-in-out infinite; top: 20%; }
+  @keyframes scanMove { 0%,100%{top:20%;opacity:0.8} 50%{top:75%;opacity:1} }
+  .camera-off { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 12px; color: var(--muted); font-size: 14px; }
+  .camera-off .icon { font-size: 40px; }
+
+  /* Buttons */
+  .btn { font-family: var(--sans); font-weight: 600; font-size: 14px; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; transition: all 0.18s; display: inline-flex; align-items: center; gap: 7px; }
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-primary:hover { background: #86efbb; transform: translateY(-1px); }
+  .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { border-color: var(--accent2); color: var(--accent2); }
+  .btn-danger { background: #2d1515; color: var(--danger); border: 1px solid #4a1f1f; }
+  .btn-danger:hover { background: #3d1a1a; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+
+  /* Form */
+  .form-group { margin-bottom: 14px; }
+  label { display: block; font-size: 13px; font-weight: 500; color: var(--muted); margin-bottom: 6px; }
+  input[type=text], input[type=email], select { width: 100%; background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 10px 14px; border-radius: 8px; font-size: 14px; font-family: var(--sans); outline: none; transition: border-color 0.2s; }
+  input:focus, select:focus { border-color: var(--accent2); }
+  select option { background: var(--card); }
+
+  /* Status badge */
+  .status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-family: var(--mono); padding: 4px 10px; border-radius: 20px; font-weight: 700; }
+  .status.present { background: #0d2e20; color: var(--accent); border: 1px solid #1a5c3a; }
+  .status.absent { background: #2d1515; color: var(--danger); border: 1px solid #4a1f1f; }
+  .status.scanning { background: #1a1a30; color: var(--accent2); border: 1px solid #3a3a60; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 1.2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* Result box */
+  .result-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-top: 16px; min-height: 60px; }
+  .result-box.success { border-color: var(--accent); background: #0d2e20; }
+  .result-box.error { border-color: var(--danger); background: #2d1515; }
+
+  /* Student list */
+  .student-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+  .student-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; align-items: center; gap: 8px; transition: border-color 0.2s; }
+  .student-card:hover { border-color: var(--accent2); }
+  .student-avatar { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border); background: var(--card); display: flex; align-items: center; justify-content: center; font-size: 28px; overflow: hidden; }
+  .student-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .student-name { font-size: 13px; font-weight: 600; text-align: center; }
+  .student-id { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+  .delete-btn { font-size: 11px; color: var(--danger); background: none; border: none; cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+  .delete-btn:hover { background: #2d1515; }
+
+  /* Attendance log */
+  .log-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .log-table th { text-align: left; padding: 8px 12px; font-family: var(--mono); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border); }
+  .log-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  .log-table tr:last-child td { border-bottom: none; }
+  .log-table tr:hover td { background: var(--surface); }
+
+  /* Stats row */
+  .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .stat-val { font-family: var(--mono); font-size: 28px; font-weight: 700; }
+  .stat-val.green { color: var(--accent); }
+  .stat-val.blue { color: var(--accent2); }
+  .stat-val.yellow { color: var(--warn); }
+  .stat-label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* Toast */
+  #toast { position: fixed; bottom: 24px; right: 24px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; font-size: 14px; font-weight: 500; z-index: 999; transform: translateY(80px); opacity: 0; transition: all 0.3s; max-width: 300px; }
+  #toast.show { transform: translateY(0); opacity: 1; }
+  #toast.success { border-color: var(--accent); color: var(--accent); }
+  #toast.error { border-color: var(--danger); color: var(--danger); }
+
+  /* Loading spinner */
+  .spinner { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .flex { display: flex; }
+  .gap-2 { gap: 8px; }
+  .items-center { align-items: center; }
+  .justify-between { justify-content: space-between; }
+  .text-muted { color: var(--muted); font-size: 13px; }
+  .mt-2 { margin-top: 8px; }
+  .empty-state { text-align: center; padding: 40px; color: var(--muted); font-size: 14px; }
+  .empty-state .icon { font-size: 40px; margin-bottom: 10px; }
+
+  .session-select { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 8px 14px; border-radius: 8px; font-size: 13px; font-family: var(--sans); outline: none; }
+
+  @media (max-width: 600px) {
+    .stats-row { grid-template-columns: 1fr 1fr; }
+    header { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo">
+      <div class="logo-icon">👁</div>
+      <div class="logo-text">Face<span>Attend</span></div>
+    </div>
+    <div class="nav-tabs">
+      <button class="tab-btn active" onclick="switchTab('attendance')">📷 Attendance</button>
+      <button class="tab-btn" onclick="switchTab('register')">➕ Register</button>
+      <button class="tab-btn" onclick="switchTab('students')">👥 Students</button>
+      <button class="tab-btn" onclick="switchTab('logs')">📋 Logs</button>
+    </div>
+  </header>
+
+  <!-- ATTENDANCE TAB -->
+  <div id="tab-attendance" class="panel active">
+    <div class="stats-row" id="stats-row"></div>
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; align-items:start;" class="attendance-grid">
+      <div class="card">
+        <div class="card-title">Camera Feed</div>
+        <div class="camera-wrap" id="cam-wrap-attend">
+          <video id="video-attend" autoplay playsinline muted></video>
+          <div class="camera-overlay" id="overlay-attend">
+            <div class="scan-frame"><div class="scan-line"></div></div>
+          </div>
+          <div class="camera-off" id="cam-off-attend" style="display:none">
+            <div class="icon">📷</div>
+            <div>Camera not started</div>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="btn-start-attend" onclick="startCamera('attend')">▶ Start Camera</button>
+          <button class="btn btn-secondary" id="btn-capture-attend" onclick="captureAndRecognize()" disabled>🔍 Identify & Mark</button>
+          <button class="btn btn-secondary" id="btn-stop-attend" onclick="stopCamera('attend')" disabled>⏹ Stop</button>
+        </div>
+        <div class="mt-2">
+          <label>Session / Class</label>
+          <input type="text" id="session-name" placeholder="e.g. Math 101 - Morning" value="Morning Session">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Recognition Result</div>
+        <div id="result-area">
+          <div class="text-muted">Start the camera and click "Identify & Mark" to take attendance.</div>
+        </div>
+        <div style="margin-top:20px;">
+          <div class="card-title">Today's Attendance</div>
+          <div id="today-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- REGISTER TAB -->
+  <div id="tab-register" class="panel">
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; align-items:start;">
+      <div class="card">
+        <div class="card-title">Capture Photo</div>
+        <div class="camera-wrap" id="cam-wrap-reg">
+          <video id="video-reg" autoplay playsinline muted></video>
+          <canvas id="canvas-reg" class="preview" style="display:none"></canvas>
+          <div class="camera-off" id="cam-off-reg">
+            <div class="icon">📷</div>
+            <div>Camera not started</div>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="btn-start-reg" onclick="startCamera('reg')">▶ Start Camera</button>
+          <button class="btn btn-secondary" id="btn-snap-reg" onclick="snapPhoto()" disabled>📸 Snap Photo</button>
+          <button class="btn btn-secondary" id="btn-retake-reg" onclick="retakePhoto()" disabled style="display:none">🔄 Retake</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Student Details</div>
+        <div class="form-group">
+          <label>Full Name *</label>
+          <input type="text" id="reg-name" placeholder="e.g. Jane Smith">
+        </div>
+        <div class="form-group">
+          <label>Student ID *</label>
+          <input type="text" id="reg-id" placeholder="e.g. STU-2024-001">
+        </div>
+        <div class="form-group">
+          <label>Class / Section</label>
+          <input type="text" id="reg-class" placeholder="e.g. Grade 10-A">
+        </div>
+        <div class="form-group">
+          <label>Email (optional)</label>
+          <input type="email" id="reg-email" placeholder="student@school.com">
+        </div>
+        <div id="photo-preview-box" style="display:none; margin-bottom:14px;">
+          <label>Captured Photo</label>
+          <img id="photo-preview" style="width:100px; height:100px; object-fit:cover; border-radius:50%; border:2px solid var(--accent); display:block; margin-top:6px;">
+        </div>
+        <button class="btn btn-primary" onclick="registerStudent()" style="width:100%">✅ Register Student</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STUDENTS TAB -->
+  <div id="tab-students" class="panel">
+    <div class="card">
+      <div class="flex justify-between items-center" style="margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+        <div class="card-title" style="margin-bottom:0">Registered Students</div>
+        <button class="btn btn-danger" onclick="clearAllStudents()">🗑 Clear All</button>
+      </div>
+      <div id="student-list"></div>
+    </div>
+  </div>
+
+  <!-- LOGS TAB -->
+  <div id="tab-logs" class="panel">
+    <div class="card">
+      <div class="flex justify-between items-center" style="margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+        <div class="card-title" style="margin-bottom:0">Attendance Log</div>
+        <div class="flex gap-2">
+          <button class="btn btn-secondary" onclick="exportCSV()">⬇ Export CSV</button>
+          <button class="btn btn-danger" onclick="clearLogs()">🗑 Clear Logs</button>
+        </div>
+      </div>
+      <div id="log-area"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────────────
+let streams = {};
+let capturedPhotoData = null;
+let recognitionInProgress = false;
+
+// ─── Storage helpers ─────────────────────────────────────────────────────────
+function getStudents() { try { return JSON.parse(localStorage.getItem('fa_students') || '[]'); } catch { return []; } }
+function saveStudents(s) { localStorage.setItem('fa_students', JSON.stringify(s)); }
+function getLogs() { try { return JSON.parse(localStorage.getItem('fa_logs') || '[]'); } catch { return []; } }
+function saveLogs(l) { localStorage.setItem('fa_logs', JSON.stringify(l)); }
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+function toast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'show ' + type;
+  setTimeout(() => t.className = '', 3000);
+}
+
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+  if (name === 'students') renderStudents();
+  if (name === 'logs') renderLogs();
+  if (name === 'attendance') renderStats(); renderTodayList();
+}
+
+// ─── Camera ───────────────────────────────────────────────────────────────────
+async function startCamera(id) {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 }, audio: false });
+    streams[id] = stream;
+    const vid = document.getElementById('video-' + id);
+    vid.srcObject = stream;
+    document.getElementById('cam-off-' + id).style.display = 'none';
+    vid.style.display = 'block';
+    if (id === 'attend') {
+      document.getElementById('btn-capture-attend').disabled = false;
+      document.getElementById('btn-stop-attend').disabled = false;
+      document.getElementById('btn-start-attend').disabled = true;
+    } else {
+      document.getElementById('btn-snap-reg').disabled = false;
+      document.getElementById('btn-start-reg').disabled = true;
+    }
+  } catch(e) {
+    toast('Camera access denied: ' + e.message, 'error');
+  }
+}
+
+function stopCamera(id) {
+  if (streams[id]) { streams[id].getTracks().forEach(t => t.stop()); delete streams[id]; }
+  const vid = document.getElementById('video-' + id);
+  vid.srcObject = null;
+  document.getElementById('cam-off-' + id).style.display = 'flex';
+  if (id === 'attend') {
+    document.getElementById('btn-capture-attend').disabled = true;
+    document.getElementById('btn-stop-attend').disabled = true;
+    document.getElementById('btn-start-attend').disabled = false;
+  }
+}
+
+function getFrameBase64(videoId) {
+  const vid = document.getElementById(videoId);
+  const c = document.createElement('canvas');
+  c.width = vid.videoWidth || 640; c.height = vid.videoHeight || 480;
+  c.getContext('2d').drawImage(vid, 0, 0);
+  return c.toDataURL('image/jpeg', 0.85).split(',')[1];
+}
+
+// ─── Register: snap photo ─────────────────────────────────────────────────────
+function snapPhoto() {
+  const vid = document.getElementById('video-reg');
+  const canvas = document.getElementById('canvas-reg');
+  canvas.width = vid.videoWidth || 640; canvas.height = vid.videoHeight || 480;
+  canvas.getContext('2d').drawImage(vid, 0, 0);
+  capturedPhotoData = canvas.toDataURL('image/jpeg', 0.85);
+  canvas.style.display = 'block';
+  document.getElementById('btn-snap-reg').style.display = 'none';
+  document.getElementById('btn-retake-reg').style.display = 'inline-flex';
+  const preview = document.getElementById('photo-preview');
+  preview.src = capturedPhotoData;
+  document.getElementById('photo-preview-box').style.display = 'block';
+  toast('Photo captured!');
+}
+
+function retakePhoto() {
+  capturedPhotoData = null;
+  document.getElementById('canvas-reg').style.display = 'none';
+  document.getElementById('btn-snap-reg').style.display = 'inline-flex';
+  document.getElementById('btn-retake-reg').style.display = 'none';
+  document.getElementById('photo-preview-box').style.display = 'none';
+}
+
+// ─── Register student ─────────────────────────────────────────────────────────
+function registerStudent() {
+  const name = document.getElementById('reg-name').value.trim();
+  const id = document.getElementById('reg-id').value.trim();
+  const cls = document.getElementById('reg-class').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  if (!name || !id) { toast('Name and Student ID are required.', 'error'); return; }
+  if (!capturedPhotoData) { toast('Please capture a photo first.', 'error'); return; }
+  const students = getStudents();
+  if (students.find(s => s.id === id)) { toast('Student ID already registered.', 'error'); return; }
+  students.push({ name, id, class: cls, email, photo: capturedPhotoData, registeredAt: new Date().toISOString() });
+  saveStudents(students);
+  toast(`✅ ${name} registered successfully!`);
+  ['reg-name','reg-id','reg-class','reg-email'].forEach(f => document.getElementById(f).value = '');
+  retakePhoto();
+}
+
+// ─── AI Recognition ───────────────────────────────────────────────────────────
+async function captureAndRecognize() {
+  if (recognitionInProgress) return;
+  const students = getStudents();
+  if (!students.length) { toast('No students registered yet.', 'error'); return; }
+  recognitionInProgress = true;
+  const btn = document.getElementById('btn-capture-attend');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Identifying...';
+
+  const resultArea = document.getElementById('result-area');
+  resultArea.innerHTML = `<div class="result-box"><div class="flex gap-2 items-center"><div class="spinner"></div> <span>Analyzing face with AI...</span></div></div>`;
+
+  try {
+    const frameB64 = getFrameBase64('video-attend');
+    const studentDescriptions = students.map(s =>
+      `Student: "${s.name}" (ID: ${s.id}, Class: ${s.class || 'N/A'})\nPhoto: [student_photo_${s.id}]`
+    ).join('\n\n');
+
+    // Build messages with all student photos + current frame
+    const userContent = [
+      { type: 'text', text: `You are a face recognition system for a school attendance portal.\n\nYou will be shown:\n1. Registered student photos labeled with their IDs\n2. A live camera frame of a person in front of the camera\n\nYour task: Identify which registered student appears in the live camera frame.\n\nRegistered students:\n${students.map(s => `- Name: "${s.name}", ID: ${s.id}, Class: ${s.class||'N/A'}`).join('\n')}\n\nBelow are the registered student photos followed by the live frame.` }
+    ];
+
+    // Add each student's photo
+    for (const s of students) {
+      userContent.push({ type: 'text', text: `Registered photo for ${s.name} (ID: ${s.id}):` });
+      userContent.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: s.photo.split(',')[1] } });
+    }
+
+    userContent.push({ type: 'text', text: 'Live camera frame (person to identify):' });
+    userContent.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: frameB64 } });
+    userContent.push({ type: 'text', text: `Compare the live frame face with all registered student photos. Respond ONLY with valid JSON (no markdown, no extra text):\n{\n  "matched": true/false,\n  "studentId": "the matched student ID or null",\n  "studentName": "the matched name or null",\n  "confidence": "high/medium/low",\n  "reason": "brief explanation"\n}` });
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 300,
+        messages: [{ role: 'user', content: userContent }]
+      })
+    });
+
+    const data = await response.json();
+    const rawText = data.content?.find(c => c.type === 'text')?.text || '{}';
+    let result;
+    try {
+      const clean = rawText.replace(/```json|```/g, '').trim();
+      result = JSON.parse(clean);
+    } catch { result = { matched: false, reason: 'Could not parse AI response.' }; }
+
+    displayRecognitionResult(result);
+    if (result.matched && result.studentId) {
+      markAttendance(result.studentId, result.studentName);
+    }
+  } catch(e) {
+    resultArea.innerHTML = `<div class="result-box error">⚠️ Error: ${e.message}</div>`;
+  }
+
+  recognitionInProgress = false;
+  btn.disabled = false;
+  btn.innerHTML = '🔍 Identify & Mark';
+}
+
+function displayRecognitionResult(result) {
+  const area = document.getElementById('result-area');
+  if (result.matched) {
+    const conf = result.confidence === 'high' ? '🟢' : result.confidence === 'medium' ? '🟡' : '🔴';
+    area.innerHTML = `
+      <div class="result-box success">
+        <div style="font-size:13px; color:var(--muted); margin-bottom:8px;">IDENTIFIED</div>
+        <div style="font-size:22px; font-weight:700; color:var(--accent)">${result.studentName}</div>
+        <div style="font-family:var(--mono); font-size:12px; color:var(--muted); margin-top:4px;">ID: ${result.studentId}</div>
+        <div style="margin-top:10px; font-size:13px;">${conf} Confidence: <strong>${result.confidence}</strong></div>
+        <div style="margin-top:6px; font-size:12px; color:var(--muted);">${result.reason}</div>
+        <div style="margin-top:10px;"><span class="status present"><span class="dot"></span>MARKED PRESENT</span></div>
+      </div>`;
+  } else {
+    area.innerHTML = `
+      <div class="result-box error">
+        <div style="font-size:13px; color:var(--muted); margin-bottom:8px;">NOT RECOGNIZED</div>
+        <div style="font-size:16px; font-weight:600; color:var(--danger)">No matching student found</div>
+        <div style="margin-top:8px; font-size:12px; color:var(--muted);">${result.reason || 'Face did not match any registered student.'}</div>
+      </div>`;
+  }
+}
+
+// ─── Mark Attendance ──────────────────────────────────────────────────────────
+function markAttendance(studentId, studentName) {
+  const logs = getLogs();
+  const today = new Date().toDateString();
+  const session = document.getElementById('session-name')?.value || 'Session';
+  const alreadyMarked = logs.find(l => l.studentId === studentId && new Date(l.timestamp).toDateString() === today && l.session === session);
+  if (alreadyMarked) { toast(`${studentName} already marked for this session.`, 'error'); return; }
+  logs.unshift({ studentId, studentName, session, timestamp: new Date().toISOString(), status: 'present' });
+  saveLogs(logs);
+  toast(`✅ ${studentName} marked present!`);
+  renderTodayList();
+  renderStats();
+}
+
+// ─── Today's list ─────────────────────────────────────────────────────────────
+function renderTodayList() {
+  const logs = getLogs();
+  const today = new Date().toDateString();
+  const todayLogs = logs.filter(l => new Date(l.timestamp).toDateString() === today);
+  const el = document.getElementById('today-list');
+  if (!el) return;
+  if (!todayLogs.length) { el.innerHTML = '<div class="text-muted" style="font-size:13px;">No attendance marked today.</div>'; return; }
+  el.innerHTML = todayLogs.map(l => `
+    <div class="flex justify-between items-center" style="padding:8px 0; border-bottom:1px solid var(--border); font-size:13px;">
+      <div>
+        <div style="font-weight:600">${l.studentName}</div>
+        <div style="color:var(--muted); font-size:11px; font-family:var(--mono)">${l.studentId} · ${l.session}</div>
+      </div>
+      <div>
+        <span class="status present"><span class="dot"></span>Present</span>
+        <div style="font-size:10px; color:var(--muted); margin-top:3px; text-align:right">${new Date(l.timestamp).toLocaleTimeString()}</div>
+      </div>
+    </div>`).join('');
+}
+
+// ─── Stats ────────────────────────────────────────────────────────────────────
+function renderStats() {
+  const el = document.getElementById('stats-row');
+  if (!el) return;
+  const students = getStudents();
+  const logs = getLogs();
+  const today = new Date().toDateString();
+  const todayPresent = [...new Set(logs.filter(l => new Date(l.timestamp).toDateString() === today).map(l => l.studentId))].length;
+  const totalLogs = logs.length;
+  el.innerHTML = `
+    <div class="stat-card"><div class="stat-val green">${todayPresent}</div><div class="stat-label">Present Today</div></div>
+    <div class="stat-card"><div class="stat-val blue">${students.length}</div><div class="stat-label">Registered</div></div>
+    <div class="stat-card"><div class="stat-val yellow">${totalLogs}</div><div class="stat-label">Total Records</div></div>`;
+}
+
+// ─── Students list ────────────────────────────────────────────────────────────
+function renderStudents() {
+  const students = getStudents();
+  const el = document.getElementById('student-list');
+  if (!students.length) { el.innerHTML = '<div class="empty-state"><div class="icon">👥</div><div>No students registered yet.</div></div>'; return; }
+  el.innerHTML = `<div class="student-grid">${students.map(s => `
+    <div class="student-card">
+      <div class="student-avatar"><img src="${s.photo}" alt="${s.name}" onerror="this.parentNode.innerHTML='👤'"></div>
+      <div class="student-name">${s.name}</div>
+      <div class="student-id">${s.id}</div>
+      <div style="font-size:11px; color:var(--muted)">${s.class || '—'}</div>
+      <button class="delete-btn" onclick="deleteStudent('${s.id}')">🗑 Remove</button>
+    </div>`).join('')}</div>`;
+}
+
+function deleteStudent(id) {
+  if (!confirm('Remove this student?')) return;
+  saveStudents(getStudents().filter(s => s.id !== id));
+  renderStudents();
+  toast('Student removed.');
+}
+
+function clearAllStudents() {
+  if (!confirm('Delete ALL registered students? This cannot be undone.')) return;
+  saveStudents([]);
+  renderStudents();
+  toast('All students cleared.', 'error');
+}
+
+// ─── Logs ─────────────────────────────────────────────────────────────────────
+function renderLogs() {
+  const logs = getLogs();
+  const el = document.getElementById('log-area');
+  if (!logs.length) { el.innerHTML = '<div class="empty-state"><div class="icon">📋</div><div>No attendance records yet.</div></div>'; return; }
+  el.innerHTML = `<div style="overflow-x:auto"><table class="log-table">
+    <thead><tr><th>#</th><th>Name</th><th>Student ID</th><th>Session</th><th>Status</th><th>Time</th></tr></thead>
+    <tbody>${logs.map((l,i) => `<tr>
+      <td style="color:var(--muted); font-family:var(--mono)">${logs.length - i}</td>
+      <td style="font-weight:600">${l.studentName}</td>
+      <td style="font-family:var(--mono); font-size:12px; color:var(--muted)">${l.studentId}</td>
+      <td>${l.session}</td>
+      <td><span class="status present"><span class="dot"></span>Present</span></td>
+      <td style="font-size:12px; color:var(--muted)">${new Date(l.timestamp).toLocaleString()}</td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function clearLogs() {
+  if (!confirm('Clear all attendance logs?')) return;
+  saveLogs([]);
+  renderLogs();
+  renderStats();
+  renderTodayList();
+  toast('Logs cleared.', 'error');
+}
+
+function exportCSV() {
+  const logs = getLogs();
+  if (!logs.length) { toast('No logs to export.', 'error'); return; }
+  const header = 'Name,StudentID,Session,Status,Timestamp\n';
+  const rows = logs.map(l => `"${l.studentName}","${l.studentId}","${l.session}","${l.status}","${new Date(l.timestamp).toLocaleString()}"`).join('\n');
+  const blob = new Blob([header + rows], { type: 'text/csv' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'attendance_' + new Date().toISOString().split('T')[0] + '.csv'; a.click();
+  toast('CSV exported!');
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+renderStats();
+renderTodayList();
+
+// Handle responsive layout
+function fixGrid() {
+  const grid = document.querySelector('.attendance-grid');
+  if (!grid) return;
+  if (window.innerWidth < 700) grid.style.gridTemplateColumns = '1fr';
+  else grid.style.gridTemplateColumns = '1fr 1fr';
+}
+fixGrid(); window.addEventListener('resize', fixGrid);
+</script>
+</body>
+</html>
