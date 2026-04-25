@@ -186,7 +186,6 @@
         </div>
         <div class="btn-row">
           <button class="btn btn-p" id="btnStartA" onclick="startCam('A')">▶ Start Camera</button>
-          <button class="btn btn-s" id="btnFlipA" onclick="flipCam('A')" disabled>🔄 Back Camera</button>
           <button class="btn btn-s" id="btnScanA" onclick="doRecognize()" disabled>🔍 Identify Student</button>
           <button class="btn btn-s" id="btnStopA" onclick="stopCam('A')" disabled>⏹ Stop</button>
         </div>
@@ -220,7 +219,6 @@
         </div>
         <div class="btn-row">
           <button class="btn btn-p" id="btnStartR" onclick="startCam('R')">▶ Start Camera</button>
-          <button class="btn btn-s" id="btnFlipR" onclick="flipCam('R')" disabled>🔄 Back Camera</button>
           <button class="btn btn-s" id="btnSnapR" onclick="snapPhoto()" disabled>📸 Take Photo</button>
           <button class="btn btn-s" id="btnRetakeR" onclick="retake()" style="display:none" disabled>🔄 Retake</button>
           <button class="btn btn-s" id="btnStopR" onclick="stopCam('R')" disabled>⏹ Stop</button>
@@ -332,46 +330,26 @@ async function loadModels() {
 
 // ── Camera ────────────────────────────────────────────────────────────────────
 const streams = {};
-const camFacing = { A: 'user', R: 'user' }; // 'user' = front, 'environment' = back
-
-async function startCam(id, facing) {
-  if (facing) camFacing[id] = facing;
-  // Stop existing stream first
-  if (streams[id]) { streams[id].getTracks().forEach(t=>t.stop()); delete streams[id]; }
+async function startCam(id) {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: camFacing[id], width: 640, height: 480 }, audio: false
-    });
+    const stream = await navigator.mediaDevices.getUserMedia({ video:{facingMode:'user',width:640,height:480}, audio:false });
     streams[id] = stream;
     const vid = document.getElementById('vid'+id);
     vid.srcObject = stream; vid.style.display = 'block';
     document.getElementById('coff'+id).style.display = 'none';
-
-    // Update flip button icon
-    const flipBtn = document.getElementById('btnFlip'+id);
-    if (flipBtn) flipBtn.textContent = camFacing[id] === 'user' ? '🔄 Back Camera' : '🔄 Front Camera';
-
     if (id === 'A') {
-      document.getElementById('btnScanA').disabled   = false;
-      document.getElementById('btnStopA').disabled   = false;
-      document.getElementById('btnFlipA').disabled   = false;
-      document.getElementById('btnStartA').disabled  = true;
+      document.getElementById('btnScanA').disabled  = false;
+      document.getElementById('btnStopA').disabled  = false;
+      document.getElementById('btnStartA').disabled = true;
       document.getElementById('scanbox').style.display = 'block';
     } else {
-      document.getElementById('btnSnapR').disabled   = false;
-      document.getElementById('btnStopR').disabled   = false;
-      document.getElementById('btnFlipR').disabled   = false;
-      document.getElementById('btnStartR').disabled  = true;
+      document.getElementById('btnSnapR').disabled  = false;
+      document.getElementById('btnStopR').disabled  = false;
+      document.getElementById('btnStartR').disabled = true;
     }
   } catch(e) {
     toast('Camera error: ' + e.message + ' — Use HTTPS or localhost.', 'err');
   }
-}
-
-async function flipCam(id) {
-  camFacing[id] = camFacing[id] === 'user' ? 'environment' : 'user';
-  await startCam(id);
-  toast(camFacing[id] === 'user' ? 'Switched to front camera' : 'Switched to back camera');
 }
 
 function stopCam(id) {
@@ -382,7 +360,6 @@ function stopCam(id) {
   if (id === 'A') {
     document.getElementById('btnScanA').disabled  = true;
     document.getElementById('btnStopA').disabled  = true;
-    document.getElementById('btnFlipA').disabled  = true;
     document.getElementById('btnStartA').disabled = false;
     document.getElementById('scanbox').style.display = 'none';
     const c = document.getElementById('overlayA');
@@ -390,7 +367,6 @@ function stopCam(id) {
   } else {
     document.getElementById('btnSnapR').disabled  = true;
     document.getElementById('btnStopR').disabled  = true;
-    document.getElementById('btnFlipR').disabled  = true;
     document.getElementById('btnStartR').disabled = false;
   }
 }
